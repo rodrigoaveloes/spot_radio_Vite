@@ -47,3 +47,140 @@
 .rhap_container {
   border-radius: 10px;
 }
+
+
+
+
+/* modal */
+
+
+.tts-button {
+  font-weight: 100;
+  appearance: none;
+  backface-visibility: hidden;
+  background-color: #fff;
+  border-radius: 20px 0px 0px 20px;
+  border-style: none;
+  box-shadow: none;
+  box-sizing: border-box;
+  color: #1B9ADA;
+  cursor: pointer;
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 400;
+  height: 35px;
+  margin-left: -8px;
+  letter-spacing: normal;
+  line-height: 0;
+  outline: none;
+  overflow: hidden;
+  min-width: 200px;
+  padding: 14px 30px;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transform: translate3d(0, 0, 0);
+  transition: all .3s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.tts-button:hover,.tts-button > span:hover {
+  background-color: #1B9ADA;
+  color: white;
+  box-shadow: rgba(0, 0, 0, .05) 0 5px 30px, rgba(0, 0, 0, .05) 0 1px 4px;
+  opacity: 1;
+  transform: translateY(0);
+  transition-duration: .35s;
+}
+
+.tts-button-beta{
+ font-size: 11px ;
+  color: #1B9ADA;
+
+}
+.tts-button:hover:after {
+  opacity: .5;
+}
+
+.tts-button:active {
+  box-shadow: rgba(0, 0, 0, .1) 0 3px 6px 0, rgba(0, 0, 0, .1) 0 0 10px 0, rgba(0, 0, 0, .1) 0 1px 4px -1px;
+  transform: translateY(2px);
+  transition-duration: .35s;
+}
+
+.tts-button:active:after {
+  opacity: 1;
+}
+.btn-close{
+background-color: #FFF;
+&:hover{
+box-shadow: none;
+}
+}
+
+.ai-input{
+  width: 100%;
+  padding: 5px;
+  margin: 2px;
+  border-radius: 5px;
+  border: 0.5px solid #b8b8b8;
+  height: 30px;
+
+}
+.ai-input::placeholder{
+  color: #b8b8b8;
+}
+
+.ai-input:focus{
+  border: 0.5px solid #1B9ADA;
+  outline: none !important;
+}
+.ai-input:hover{
+  transition: all 0.3s ease;
+box-shadow: 2px 2px 2px 1px rgba(0, 0, 0, 0.2);
+
+}
+
+
+.generate{
+  padding-block: 8px;
+  margin: auto  5px;
+  height: 40px;
+  border-radius: 5px;
+  border: none;
+  background-color: #1B9ADA;
+  color: #FFF;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1em;
+}
+.generate:hover{
+  transition: all 0.3s ease;
+  filter:brightness(1.1);
+  box-shadow: 2px 2px 2px 1px rgba(0, 0, 0, 0.2);
+}
+
+@media (min-width: 768px) {
+  .tts-button {
+    padding: 14px 22px;
+    width: 176px;
+  }
+}
+
+.voice-menu-options {
+  margin-top: 2px;
+  height: 40.5px;
+  width: 120px;
+  border: 0.2px solid rgba(0, 0, 0, 0.205);
+  border-radius: 0px 5px 5px 0px;
+  transition: all ease-in 0.3s;
+
+}
+
+.voice-menu-options:hover {
+  box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.178);
+}

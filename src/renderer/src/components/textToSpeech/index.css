@@ -2,7 +2,7 @@
   font-weight: 100;
   appearance: none;
   backface-visibility: hidden;
-  background-color: #fff;
+  background-color: #000;
   border-radius: 20px 0px 0px 20px;
   border-style: none;
   box-shadow: none;
@@ -44,7 +44,7 @@
 .tts-button-beta{
  font-size: 11px ;
   color: #1B9ADA;
- 
+
 }
 .tts-button:hover:after {
   opacity: .5;
@@ -60,27 +60,33 @@
   opacity: 1;
 }
 .btn-close{
-background-color: #FFF;
-&:hover{
-box-shadow: none;
+  border: none !important;
+  background-color: transparent !important;
+  &:hover{
+  box-shadow: none;
 }
 }
 
 .ai-input{
   width: 100%;
   padding: 5px;
+  padding-left: 10px;
   margin: 2px;
   border-radius: 5px;
-  border: 0.5px solid #b8b8b8;
+  background-color: #1a1a1a;
+  border: 1px solid #3d3d3d;
   height: 30px;
-
+  color: #b8b8b8;
 }
 .ai-input::placeholder{
   color: #b8b8b8;
 }
 
 .ai-input:focus{
-  border: 0.5px solid #1B9ADA;
+  padding-left: 15px;
+  color: white;
+  background-color: #272727;
+  border: 1px solid #8d8d8d;
   outline: none !important;
 }
 .ai-input:hover{
@@ -96,11 +102,12 @@ box-shadow: 2px 2px 2px 1px rgba(0, 0, 0, 0.2);
   height: 40px;
   border-radius: 5px;
   border: none;
-  background-color: #1B9ADA;
-  color: #FFF;
+  background-color: #ffa12549;
+  color: #fff;
   cursor: pointer;
   font-weight: 600;
   font-size: 1em;
+  border: 1px solid #ffa1251f;
 }
 .generate:hover{
   transition: all 0.3s ease;
