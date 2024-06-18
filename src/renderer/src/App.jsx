@@ -11,16 +11,19 @@ import { Loading } from './utils/loading'
 function App() {
   // convert audio
   const downloadAudio = (audioline) => {
-    console.log('Download')
-    if (audioline.track && audioline.signature && audioline.voiceover) {
+    if (
+      audioline.track !== undefined &&
+      audioline.signature !== undefined &&
+      audioline.voiceover !== undefined
+    ) {
       window.electron.ipcRenderer.send('downloadAudio', audioline, 'concatAndMerge')
       alert('arquivo salvo em spot_radio/outputAudio')
       return
-    } else if (audioline.voiceover && audioline.signature) {
+    } else if ((audioline.voiceover !== undefined) & (audioline.signature !== undefined)) {
       window.electron.ipcRenderer.send('downloadAudio', audioline, 'concat')
       alert('arquivo salvo em spot_radio/outputAudio')
       return
-    } else if (audioline.voiceover && audioline.track) {
+    } else if ((audioline.voiceover !== undefined) & (audioline.track !== undefined)) {
       window.electron.ipcRenderer.send('downloadAudio', audioline, 'merge')
       alert('arquivo salvo em spot_radio/outputAudio')
       return
@@ -56,6 +59,7 @@ function App() {
   const [files, setFiles] = useState({
     tracks: [
       {
+        extend: true
         // name: '',
         // track: '',
         // voiceover: '',
@@ -88,6 +92,13 @@ function App() {
     setFiles(tracksCopy)
   }
 
+  const setExtend = (checkedStatus, index) => {
+    let filesCopy = { ...files }
+    filesCopy.tracks[index].extend = checkedStatus
+    setFiles(filesCopy)
+    return
+  }
+
   // create new Audio Line
   function addNewLine() {
     let audioLineCopy = [...audioLine]
@@ -102,6 +113,7 @@ function App() {
     setAudioLine(audioLineCopy)
 
     let track = {
+      extend: true
       // name: '',
       // track: '',
       // voiceover: '',
@@ -125,7 +137,7 @@ function App() {
       setFiles(filesCopy)
       setAudioLine(audioLineCopy)
     } else {
-      setFiles({ tracks: [] })
+      setFiles({ tracks: [{ extend: true }] })
       setAudioLine([
         {
           voiceover: 'Locução',
@@ -138,7 +150,6 @@ function App() {
       return
     }
   }
-
   // update json with csv data
   const [csvData, setCsvData] = useState([])
   const insertCsvData = () => {
@@ -333,7 +344,6 @@ function App() {
                 <path d="M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z" />
               </svg>
             </button>
-
             <div>
               <button
                 className="dark-button"
@@ -369,7 +379,6 @@ function App() {
               index={index}
               onSubmit={getTtsData}
             />
-
             <div>
               <button
                 className="dark-button"
@@ -399,7 +408,7 @@ function App() {
               />
             </div>
 
-            <Player path="../src/assets/Assai_spot.mp3" />
+            <Player path="../src/assets/play.mp3" files={files.tracks[index]} />
             <button className="light-button" onClick={() => downloadAudio(files.tracks[index])}>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -411,6 +420,16 @@ function App() {
                 <path d="M480-336 288-528l51-51 105 105v-342h72v342l105-105 51 51-192 192ZM263.72-192Q234-192 213-213.15T192-264v-72h72v72h432v-72h72v72q0 29.7-21.16 50.85Q725.68-192 695.96-192H263.72Z" />
               </svg>
             </button>
+            <div style={{ display: 'flex', margin: ' auto 10px' }}>
+              <p>Est.</p>
+              <input
+                type="checkbox"
+                checked={files.tracks[index].extend}
+                onChange={(e) => {
+                  setExtend(e.target.checked, index)
+                }}
+              />
+            </div>
           </div>
         ))}
       </div>

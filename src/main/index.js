@@ -175,6 +175,110 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.on('playAudio', (event, audios, method) => {
+    const voiceOver = audios.voiceover
+    const track = audios.track
+    const signature = audios.signature
+
+    const outputDir = path.join('src', 'renderer', 'src', 'assets')
+    const mergedFile = path.join(outputDir, 'temp.wav')
+    const finalOutputFile = path.join(outputDir, 'play.mp3')
+    if (method === 'concatAndMerge') {
+      if (!fs.existsSync(voiceOver) || !fs.existsSync(track) || !fs.existsSync(signature)) {
+        console.error('Arquivo não encontrado')
+        return
+      }
+
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true })
+      }
+      ffmpeg()
+        .input(voiceOver)
+        .input(track)
+        .complexFilter(['[0:a]volume=0.5[a1]', '[1:a]volume=0.5[a2]', '[a1][a2]amerge=inputs=2[a]'])
+        .outputOptions('-map', '[a]')
+        .audioChannels(2)
+        .audioCodec('pcm_s16le')
+        .save(mergedFile)
+        .on('end', () => {
+          ffmpeg()
+            .input(mergedFile)
+            .input(signature)
+            .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
+            .outputOptions('-map', '[a]')
+            .audioCodec('libmp3lame')
+            .audioChannels(2)
+            .audioFrequency(44100)
+            .save(finalOutputFile)
+            .on('end', () => {
+              fs.unlink(mergedFile, (err) => {
+                if (err) {
+                  return
+                }
+              })
+            })
+            .on('error', (err) => {
+              console.error('Erro durante a concatenação:', err)
+            })
+        })
+        .on('error', (err) => {
+          console.error('Erro durante o merge:', err)
+        })
+    } else if (method === 'merge') {
+      if (!fs.existsSync(voiceOver) || !fs.existsSync(track)) {
+        console.error('Arquivo não encontrado')
+        return
+      }
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true })
+      }
+      ffmpeg()
+        .input(track)
+        .input(voiceOver)
+        .outputOptions('-ac', '2')
+        .complexFilter(['[0:a]volume=0.3[a1]', '[1:a]volume=0.5[a2]', '[a2][a1]amerge=inputs=2[a]'])
+        .audioFrequency(22050)
+        .audioChannels(2)
+        .audioQuality(1)
+        .audioCodec('libmp3lame')
+        .outputOptions('-map', '[a]')
+        .save(finalOutputFile)
+        .on('end', () => {
+          console.log('Conversion finished')
+        })
+        .on('error', (err) => {
+          console.error('Error:', err)
+        })
+    } else if (method === 'concat') {
+      if (!fs.existsSync(voiceOver) || !fs.existsSync(signature)) {
+        console.error('Arquivo não encontrado')
+        return
+      }
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true })
+      }
+
+      ffmpeg()
+        .input(voiceOver)
+        .input(signature)
+        .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
+        .outputOptions('-map', '[a]')
+        .audioCodec('libmp3lame')
+        .audioChannels(2)
+        .audioFrequency(44100)
+        .save(finalOutputFile)
+        .on('end', () => {
+          console.log(`Arquivo concatenado salvo em ${finalOutputFile}`)
+        })
+        .on('error', (err, stdout, stderr) => {
+          console.error('ffmpeg stderr:', stderr)
+          console.error('Erro durante a concatenação:', err)
+        })
+    } else {
+      return
+    }
+  })
+
   ipcMain.on('syncVoiceover', async (event, voiceover) => {
     const buffer = Buffer.from(voiceover.b64, 'base64')
     const filePath = path.join(basePath, 'spot_radio', 'temp', `${voiceover.name}.mp3`)
@@ -203,25 +307,31 @@ app.whenReady().then(() => {
     try {
       const outputDir = path.join(basePath, 'spot_radio', 'outputAudio')
       const tempDir = path.join(basePath, 'spot_radio', 'temp')
+      let track = path.join(basePath, 'spot_radio', 'meus arquivos', 'trilhas')
+      let signature = path.join(basePath, 'spot_radio', 'meus arquivos', 'assinatura')
+
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true })
       }
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true })
       }
+
+      if (!fs.existsSync(track)) {
+        fs.mkdirSync(track, { recursive: true })
+      }
+
+      if (!fs.existsSync(signature)) {
+        fs.mkdirSync(signature, { recursive: true })
+      }
     } catch (e) {
       console.log(e)
     }
   })
 
-  // const deleteTempPath = () => {
-  //   const tempDir = path.join(basePath, 'spot_radio', 'temp')
-  //   try {
-  //     fs.unlinkSync(tempDir)
-  //   } catch (err) {
-  //     console.error(err)
-  //   }
-  // }
+  // ipcMain.on('playAudio', () => {
+
+  // })
 
   createWindow()
 

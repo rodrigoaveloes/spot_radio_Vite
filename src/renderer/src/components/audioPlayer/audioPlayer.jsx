@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Box, Modal } from '@mui/material'
 import AudioPlayer from 'react-h5-audio-player'
+import { Loading } from '../../utils/loading'
 export const Player = (props) => {
   const [open, setOpen] = useState(false)
-  const handleOpen = () => setOpen(true)
-  const handleClose = () => setOpen(false)
+  const [loading, setLoading] = useState(false)
 
   const style = {
     position: 'absolute',
@@ -17,10 +17,50 @@ export const Player = (props) => {
     boxShadow: 24,
     p: 0
   }
+  const playAudio = (audioline) => {
+    if (
+      audioline.track !== undefined &&
+      audioline.signature !== undefined &&
+      audioline.voiceover !== undefined
+    ) {
+      window.electron.ipcRenderer.send('playAudio', audioline, 'concatAndMerge')
+      setLoading(true)
+      setTimeout(() => {
+        setLoading(false)
+        setOpen(true)
+      }, 2000)
+      return
+    } else if ((audioline.voiceover !== undefined) & (audioline.signature !== undefined)) {
+      window.electron.ipcRenderer.send('playAudio', audioline, 'concat')
+      setLoading(true)
+      setTimeout(() => {
+        setLoading(false)
+        setOpen(true)
+      }, 2000)
 
+      return
+    } else if ((audioline.voiceover !== undefined) & (audioline.track !== undefined)) {
+      window.electron.ipcRenderer.send('playAudio', audioline, 'merge')
+      setLoading(true)
+      setTimeout(() => {
+        setLoading(false)
+        setOpen(true)
+      }, 2000)
+      return
+    } else {
+      alert('Insira locução com ao menos uma trilha ou assinatura ')
+      return
+    }
+  }
   return (
     <div>
-      <button className="light-button2" onClick={handleOpen}>
+      <Loading setLoading={loading} />
+      <button
+        className="light-button2"
+        onClick={() => {
+          playAudio(props.files)
+        }}
+      >
         {' '}
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -35,12 +75,14 @@ export const Player = (props) => {
       </button>
       <Modal
         open={open}
-        onClose={handleClose}
+        onClose={() => {
+          setOpen(false)
+        }}
         aria-labelledby="modal-modal-title"
         aria-describedby="modal-modal-description"
       >
         <Box sx={style}>
-          <AudioPlayer showJumpControls={false} autoPlay src={props.path} />
+          <AudioPlayer showJumpControls={false} autoPlay src="../src/assets/play.mp3" />
         </Box>
       </Modal>
     </div>
