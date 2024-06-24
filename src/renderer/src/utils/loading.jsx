@@ -19,7 +19,6 @@ export const Loading = ({ setLoading }) => {
         }}
       >
         <div className="custom-loader"></div>
-        {/* <p>Aguarde enquanto criamos a locução</p> */}
       </div>
     </>
   )

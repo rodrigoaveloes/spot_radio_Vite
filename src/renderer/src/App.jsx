@@ -7,10 +7,12 @@ import { Player } from './components/audioPlayer/audioPlayer'
 import { TextToSpeech } from './components/textToSpeech/TextToSpeech'
 import { v4 as uuidv4 } from 'uuid'
 import { Loading } from './utils/loading'
+import { Api } from './api/Api'
 
 function App() {
   // convert audio
   const downloadAudio = (audioline) => {
+    console.log(audioline)
     if (
       audioline.track !== undefined &&
       audioline.signature !== undefined &&
@@ -49,24 +51,17 @@ function App() {
 
   const [audioLine, setAudioLine] = useState([
     {
-      voiceover: 'Locução',
+      voiceover: '',
       track: 'Trilha',
       signature: 'Assinatura'
     }
   ])
-
+  const [loading, setLoading] = useState(false)
   // line with all base64 audio
   const [files, setFiles] = useState({
     tracks: [
       {
         extend: true
-        // name: '',
-        // track: '',
-        // voiceover: '',
-        // voiceoverText: '',
-        // signature: '',
-        // merge: '',
-        // concat: ''
       }
     ]
   })
@@ -88,10 +83,10 @@ function App() {
       audioLineCopy[index].track = file.name
       setAudioLine(audioLineCopy)
       tracksCopy.tracks[index].track = file.path
+      console.log(tracksCopy.tracks[index].track)
     }
     setFiles(tracksCopy)
   }
-
   const setExtend = (checkedStatus, index) => {
     let filesCopy = { ...files }
     filesCopy.tracks[index].extend = checkedStatus
@@ -114,11 +109,6 @@ function App() {
 
     let track = {
       extend: true
-      // name: '',
-      // track: '',
-      // voiceover: '',
-      // voiceoverText: '',
-      // signature: ''
     }
     let filesCopy = { ...files }
     filesCopy.tracks.push(track)
@@ -140,7 +130,7 @@ function App() {
       setFiles({ tracks: [{ extend: true }] })
       setAudioLine([
         {
-          voiceover: 'Locução',
+          voiceover: '',
           track: 'Trilha',
           voiceoverText: '',
           signature: 'Assinatura'
@@ -152,33 +142,86 @@ function App() {
   }
   // update json with csv data
   const [csvData, setCsvData] = useState([])
-  const insertCsvData = () => {
+  const insertCsvData = async () => {
     let audioLineCopy = [...audioLine]
     let filesCopy = { ...files }
     for (let i in csvData) {
+      if (csvData[i].assinatura === undefined || csvData[i].assinatura === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo assinatura, na linha ${i}`)
+      }
+      if (csvData[i].loucao_texto === undefined || csvData[i].loucao_texto === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo locucao_texto, na linha ${i}`)
+      }
+      if (csvData[i].nome_locucao === undefined || csvData[i].nome_locucao === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo nome_locucao, na linha ${i}`)
+      }
+      if (csvData[i].trilha === undefined || csvData[i].trilha === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo trilha, na linha ${i}`)
+      }
+
+      if (csvData[i].voz === undefined || csvData[i].voz === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo nome_locucao, na linha ${i}`)
+      }
+    }
+
+    // verify if files exist
+    let csvWithPaths = await validatePaths(csvData)
+    setLoading(true)
+
+    console.log(csvWithPaths)
+    const isExtend = (booleanString) => {
+      return (booleanString.toLowerCase() === 'não') | (booleanString.toLowerCase() === 'nao')
+        ? false
+        : true
+    }
+    function delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms))
+    }
+    for (let i in csvData) {
+      let voiceOverPath = await syncCsvFiles(csvData[i])
+      let lastIndex = voiceOverPath.split('\\').length - 1
+      let mp3filename = voiceOverPath.split('\\')[lastIndex].split('.mp3')[0]
       let newAudioLine = {
-        voiceover: csvData[i].nome_trilha,
+        voiceover: csvData[i].nome_locucao,
         voiceoverText: csvData[i].loucao_texto,
         voice: csvData[i].voz,
-        track: 'Trilha',
-        signature: 'Assinatura'
+        track: csvData[i].trilha,
+        signature: csvData[i].assinatura,
+        extend: isExtend(csvData[i].estender)
       }
       audioLineCopy.push(newAudioLine)
 
       let newTrack = {
-        name: csvData[i].nome_trilha,
-        voiceoverText: csvData[i].loucao_texto,
-        voice: csvData[i].voz,
-        track: '',
-        voiceover: '',
-        signature: ''
+        name: mp3filename,
+        voiceoverText: csvWithPaths.data[i].loucao_texto,
+        voice: csvWithPaths.data[i].voz,
+        track: csvWithPaths.data[i].trilha,
+        voiceover: voiceOverPath,
+        signature: csvWithPaths.data[i].assinatura,
+        extend: isExtend(csvWithPaths.data[i].estender)
       }
       filesCopy.tracks.push(newTrack)
+      delay(2000)
+    }
+
+    if (filesCopy.tracks[0].voiceover === undefined) {
+      filesCopy.tracks.splice(0, 1)
+      audioLineCopy.splice(0, 1)
     }
     setAudioLine(audioLineCopy)
     setFiles(filesCopy)
+    setLoading(false)
   }
-
   const csvUploadFn = (event) => {
     const file = event.target.files[0]
     const fileType = file.name.split('.').pop().toLowerCase()
@@ -197,7 +240,6 @@ function App() {
       }
     })
   }
-
   const getTtsData = async (data) => {
     data.name = data.name + '_' + data.voice + '_' + uuidv4()
     let sync = await syncVoiceOver(data)
@@ -208,11 +250,97 @@ function App() {
 
     // update files voiceover
     let filesCopy = { ...files }
-    // filesCopy.tracks[data.index].voiceover = data.b64
     filesCopy.tracks[data.index].voiceover = sync
     filesCopy.tracks[data.index].voiceoverText = data.text
     filesCopy.tracks[data.index].name = data.name
   }
+  // console.log(files)
+  // console.log(audioLine)
+
+  async function validatePaths(csvData) {
+    const validate = async (csv) => {
+      return new Promise((resolve, reject) => {
+        window.electron.ipcRenderer.send('validatePaths', csv)
+        window.electron.ipcRenderer.once('csvFilesPaths', (event, response) => {
+          if (response.success) {
+            resolve(response)
+          } else {
+            console.error('Falha na sincronização:', response.error)
+            reject(response.error)
+          }
+        })
+      })
+    }
+    let result = await validate(csvData)
+    return result
+  }
+  async function syncCsvFiles(csvData) {
+    const voices = [
+      'Adam',
+      'Assaí',
+      'Assai_Assinatura',
+      'Daniel',
+      'Diego',
+      'Rachel',
+      'Sarah',
+      'Tim_Mion'
+    ]
+    const checkVoice = (voicePerson) => {
+      for (let i in voices) {
+        if (voices[i].toLowerCase() == voicePerson.toLowerCase()) {
+          return voices[i]
+        }
+      }
+      return voices[0]
+    }
+    let body = { text: csvData.loucao_texto, voice: checkVoice(csvData.voz) }
+    let response = await Api.TextToSpeech(body)
+    let b64 = 'data:audio/mpeg;base64,' + response.audioBase64
+    let name = (csvData.nome_locucao = csvData.nome_locucao + '_' + csvData.voz + '_' + uuidv4())
+    let syncParams = {
+      b64: b64,
+      name: name,
+      text: csvData.loucao_texto,
+      voice: csvData.voz
+    }
+    let voiceOverPath = await syncVoiceOver(syncParams)
+
+    return voiceOverPath
+  }
+
+  async function downloadAllFiles() {
+    setLoading(true)
+    const download = (audioline, index) => {
+      const { track, signature, voiceover } = audioline
+
+      if (track && signature && voiceover) {
+        window.electron.ipcRenderer.send('downloadAudio', audioline, 'concatAndMerge')
+      } else if (voiceover && signature) {
+        window.electron.ipcRenderer.send('downloadAudio', audioline, 'concat')
+      } else if (voiceover && track) {
+        window.electron.ipcRenderer.send('downloadAudio', audioline, 'merge')
+      } else {
+        alert(`Insira locução com ao menos uma trilha ou assinatura na linha ${index + 1}`)
+      }
+    }
+
+    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+    for (let i = 0; i < files.tracks.length; i++) {
+      await download(files.tracks[i], i)
+      await delay(3000)
+    }
+    setLoading(false)
+
+    alert('arquivo salvo em spot_radio/outputAudio')
+    console.log(files)
+  }
+  const createPaths = () => {
+    window.electron.ipcRenderer.send('createPaths')
+  }
+  useEffect(() => {
+    createPaths()
+  }, [])
 
   useEffect(() => {
     if (csvData.length > 0) {
@@ -220,13 +348,9 @@ function App() {
     }
   }, [csvData])
 
-  useEffect(() => {
-    window.electron.ipcRenderer.send('createPaths')
-  }, [])
-
   return (
     <>
-      <Loading />
+      <Loading setLoading={loading} />
       <div
         style={{
           display: 'flex',
@@ -243,8 +367,6 @@ function App() {
             width: '140px',
             height: '40px',
             color: '#dcdbd6',
-            // backgroundColor: '#dcdbd6',
-            // border: '1px solid rgba(255, 255, 255, 0.521)',
             display: 'inline-flex',
             justifyContent: 'space-evenly',
             padding: '6px 12px'
@@ -311,7 +433,13 @@ function App() {
         }}
       >
         <div style={{ display: 'flex' }}>
-          <button className="light-button" style={{ display: 'inline-flex', margin: ' 30px 10px' }}>
+          <button
+            className="light-button"
+            onClick={() => {
+              downloadAllFiles()
+            }}
+            style={{ display: 'inline-flex', margin: ' 30px 10px' }}
+          >
             Baixar arquivos
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -409,7 +537,12 @@ function App() {
             </div>
 
             <Player path="../src/assets/play.mp3" files={files.tracks[index]} />
-            <button className="light-button" onClick={() => downloadAudio(files.tracks[index])}>
+            <button
+              className="light-button"
+              onClick={() => {
+                downloadAudio(files.tracks[index])
+              }}
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 height="20px"

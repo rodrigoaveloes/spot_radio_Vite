@@ -17,6 +17,7 @@ export const Player = (props) => {
     boxShadow: 24,
     p: 0
   }
+
   const playAudio = (audioline) => {
     if (
       audioline.track !== undefined &&
@@ -52,6 +53,7 @@ export const Player = (props) => {
       return
     }
   }
+
   return (
     <div>
       <Loading setLoading={loading} />
@@ -76,6 +78,7 @@ export const Player = (props) => {
       <Modal
         open={open}
         onClose={() => {
+          window.electron.ipcRenderer.send('unsyncPlayAudio')
           setOpen(false)
         }}
         aria-labelledby="modal-modal-title"

@@ -31,9 +31,9 @@ export const TextToSpeech = (props) => {
       outline: 'none'
     }
   }
-
   const [ttsInput, setTtsInput] = useState({
-    name: props.name === 'Locução' ? '' : props.name,
+    // name: props.name === 'Locução' ? '' : props.name,
+    name: props.name,
     text: props.text
   })
   const [open, setOpen] = useState(false)
@@ -53,13 +53,14 @@ export const TextToSpeech = (props) => {
       text: ttsInput.text,
       voice: voice
     }
+    console.log(body)
     setLoading(true)
     let response = await Api.TextToSpeech(body)
     let b64 = 'data:audio/mpeg;base64,' + response.audioBase64
     body.b64 = b64
     body.index = props.index
     body.name = ttsInput.name
-    setTtsInput({ name: '', text: '' })
+    // setTtsInput({ name: '', text: '' })
     setLoading(false)
 
     props.onSubmit({ ...body })
@@ -125,7 +126,7 @@ export const TextToSpeech = (props) => {
           className="dark-button"
           onClick={handleOpen}
         >
-          {props.name === undefined || '' ? 'Locução' : props.name}
+          {props.name === '' ? 'Locução' : props.name}
         </button>
 
         <Modal

@@ -88,38 +88,88 @@ app.whenReady().then(() => {
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true })
       }
-      ffmpeg()
-        .input(voiceOver)
-        .input(track)
-        .complexFilter(['[0:a]volume=0.5[a1]', '[1:a]volume=0.5[a2]', '[a1][a2]amerge=inputs=2[a]'])
-        .outputOptions('-map', '[a]')
-        .audioChannels(2)
-        .audioCodec('pcm_s16le')
-        .save(mergedFile)
-        .on('end', () => {
-          ffmpeg()
-            .input(mergedFile)
-            .input(signature)
-            .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
-            .outputOptions('-map', '[a]')
-            .audioCodec('libmp3lame')
-            .audioChannels(2)
-            .audioFrequency(44100)
-            .save(finalOutputFile)
-            .on('end', () => {
-              fs.unlink(mergedFile, (err) => {
-                if (err) {
-                  return
-                }
+
+      if (audios.extend === false) {
+        ffmpeg()
+          .input(track)
+          .input(voiceOver)
+          .complexFilter([
+            '[0:a]volume=0.7,aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a1]',
+            '[1:a]volume=1.0,aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a2]',
+            '[a1][a2]amerge=inputs=2[a]'
+          ])
+          .outputOptions('-map', '[a]')
+          .audioCodec('pcm_s16le')
+          .output(mergedFile)
+          .on('end', () => {
+            ffmpeg()
+              .input(mergedFile)
+              .input(signature)
+              .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
+              .outputOptions('-map', '[a]')
+              .audioCodec('libmp3lame')
+              .audioChannels(2)
+              .audioFrequency(44100)
+              .audioBitrate('320k')
+              .output(finalOutputFile)
+              .on('end', () => {
+                fs.unlink(mergedFile, (err) => {
+                  if (err) {
+                    console.error('Error deleting intermediate file:', err)
+                  } else {
+                    console.log('Intermediate file deleted successfully.')
+                  }
+                })
               })
-            })
-            .on('error', (err) => {
-              console.error('Erro durante a concatenação:', err)
-            })
-        })
-        .on('error', (err) => {
-          console.error('Erro durante o merge:', err)
-        })
+              .on('error', (err) => {
+                console.error('Error during concatenation:', err)
+              })
+              .run()
+          })
+          .on('error', (err) => {
+            console.error('Error during merging:', err)
+          })
+          .run()
+      } else {
+        ffmpeg()
+          .input(voiceOver)
+          .input(signature)
+          .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
+          .outputOptions('-map', '[a]')
+          .audioCodec('pcm_s16le')
+          .audioChannels(2)
+          .save(mergedFile)
+          .on('end', () => {
+            ffmpeg()
+              .input(mergedFile)
+              .input(track)
+              .complexFilter([
+                '[0:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a1]',
+                '[1:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a2]',
+                '[a1][a2]amerge=inputs=2[a]'
+              ])
+              .outputOptions('-map', '[a]')
+              .audioCodec('libmp3lame')
+              .audioChannels(2)
+              .audioFrequency(44100)
+              .audioBitrate('320k')
+              .save(finalOutputFile)
+              .on('end', () => {
+                fs.unlink(mergedFile, (err) => {
+                  if (err) {
+                    console.error('Erro ao deletar o arquivo intermediário:', err)
+                    return
+                  }
+                })
+              })
+              .on('error', (err) => {
+                console.error('Erro durante a fusão:', err)
+              })
+          })
+          .on('error', (err) => {
+            console.error('Erro durante a concatenação:', err)
+          })
+      }
     } else if (method === 'merge') {
       if (!fs.existsSync(voiceOver) || !fs.existsSync(track)) {
         console.error('Arquivo não encontrado')
@@ -131,19 +181,22 @@ app.whenReady().then(() => {
       ffmpeg()
         .input(track)
         .input(voiceOver)
-        .outputOptions('-ac', '2')
-        .complexFilter(['[0:a]volume=0.3[a1]', '[1:a]volume=0.5[a2]', '[a2][a1]amerge=inputs=2[a]'])
-        .audioFrequency(22050)
-        .audioChannels(2)
-        .audioQuality(1)
+        .complexFilter([
+          '[0:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a0]',
+          '[1:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a1]',
+          '[a0][a1]amerge=inputs=2[a]'
+        ])
         .audioCodec('libmp3lame')
+        .audioChannels(2)
+        .outputOptions('-ac', '2')
         .outputOptions('-map', '[a]')
         .save(finalOutputFile)
         .on('end', () => {
           console.log('Conversion finished')
         })
-        .on('error', (err) => {
+        .on('error', (err, stdout, stderr) => {
           console.error('Error:', err)
+          console.error('ffmpeg stderr:', stderr)
         })
     } else if (method === 'concat') {
       if (!fs.existsSync(voiceOver) || !fs.existsSync(signature)) {
@@ -170,8 +223,18 @@ app.whenReady().then(() => {
           console.error('ffmpeg stderr:', stderr)
           console.error('Erro durante a concatenação:', err)
         })
+      return
     } else {
       return
+    }
+  })
+
+  ipcMain.on('unsyncPlayAudio', () => {
+    const finalOutputFile = path.join('src', 'renderer', 'src', 'assets', 'play.mp3')
+    try {
+      fs.unlinkSync(finalOutputFile)
+    } catch (err) {
+      console.error(err)
     }
   })
 
@@ -179,51 +242,110 @@ app.whenReady().then(() => {
     const voiceOver = audios.voiceover
     const track = audios.track
     const signature = audios.signature
-
     const outputDir = path.join('src', 'renderer', 'src', 'assets')
     const mergedFile = path.join(outputDir, 'temp.wav')
     const finalOutputFile = path.join(outputDir, 'play.mp3')
+    console.log(audios, method)
     if (method === 'concatAndMerge') {
-      if (!fs.existsSync(voiceOver) || !fs.existsSync(track) || !fs.existsSync(signature)) {
-        console.error('Arquivo não encontrado')
-        return
+      if (!fs.existsSync(voiceOver)) {
+        console.error(`${voiceOver} Não existe!.`)
+        return voiceOver
+      } else if (!fs.existsSync(track)) {
+        console.error(`${track} Não existe!`)
+        return track
+      } else if (!fs.existsSync(signature)) {
+        console.error(`${signature} Não existe!`)
+        return signature
       }
 
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true })
       }
-      ffmpeg()
-        .input(voiceOver)
-        .input(track)
-        .complexFilter(['[0:a]volume=0.5[a1]', '[1:a]volume=0.5[a2]', '[a1][a2]amerge=inputs=2[a]'])
-        .outputOptions('-map', '[a]')
-        .audioChannels(2)
-        .audioCodec('pcm_s16le')
-        .save(mergedFile)
-        .on('end', () => {
-          ffmpeg()
-            .input(mergedFile)
-            .input(signature)
-            .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
-            .outputOptions('-map', '[a]')
-            .audioCodec('libmp3lame')
-            .audioChannels(2)
-            .audioFrequency(44100)
-            .save(finalOutputFile)
-            .on('end', () => {
-              fs.unlink(mergedFile, (err) => {
-                if (err) {
-                  return
-                }
+      if (audios.extend === false) {
+        ffmpeg()
+          .input(track)
+          .input(voiceOver)
+          .complexFilter([
+            '[0:a]volume=0.7,aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a1]',
+            '[1:a]volume=1.0,aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a2]',
+            '[a1][a2]amerge=inputs=2[a]'
+          ])
+          .outputOptions('-map', '[a]')
+          .audioCodec('pcm_s16le')
+          .output(mergedFile)
+          .on('end', () => {
+            console.log('Merging completed successfully.')
+
+            ffmpeg()
+              .input(mergedFile)
+              .input(signature)
+              .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
+              .outputOptions('-map', '[a]')
+              .audioCodec('libmp3lame')
+              .audioChannels(2)
+              .audioFrequency(44100)
+              .audioBitrate('320k')
+              .output(finalOutputFile)
+              .on('end', () => {
+                console.log('Concatenation completed successfully.')
+
+                fs.unlink(mergedFile, (err) => {
+                  if (err) {
+                    console.error('Error deleting intermediate file:', err)
+                  } else {
+                    console.log('Intermediate file deleted successfully.')
+                  }
+                })
               })
-            })
-            .on('error', (err) => {
-              console.error('Erro durante a concatenação:', err)
-            })
-        })
-        .on('error', (err) => {
-          console.error('Erro durante o merge:', err)
-        })
+              .on('error', (err) => {
+                console.error('Error during concatenation:', err)
+              })
+              .run()
+          })
+          .on('error', (err) => {
+            console.error('Error during merging:', err)
+          })
+          .run()
+      } else {
+        ffmpeg()
+          .input(voiceOver)
+          .input(signature)
+          .complexFilter('[0:a][1:a]concat=n=2:v=0:a=1[a]')
+          .outputOptions('-map', '[a]')
+          .audioCodec('pcm_s16le')
+          .audioChannels(2)
+          .save(mergedFile)
+          .on('end', () => {
+            ffmpeg()
+              .input(mergedFile)
+              .input(track)
+              .complexFilter([
+                '[0:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a1]',
+                '[1:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a2]',
+                '[a1][a2]amerge=inputs=2[a]'
+              ])
+              .outputOptions('-map', '[a]')
+              .audioCodec('libmp3lame')
+              .audioChannels(2)
+              .audioFrequency(44100)
+              .audioBitrate('320k')
+              .save(finalOutputFile)
+              .on('end', () => {
+                fs.unlink(mergedFile, (err) => {
+                  if (err) {
+                    console.error('Erro ao deletar o arquivo intermediário:', err)
+                    return
+                  }
+                })
+              })
+              .on('error', (err) => {
+                console.error('Erro durante a fusão:', err)
+              })
+          })
+          .on('error', (err) => {
+            console.error('Erro durante a concatenação:', err)
+          })
+      }
     } else if (method === 'merge') {
       if (!fs.existsSync(voiceOver) || !fs.existsSync(track)) {
         console.error('Arquivo não encontrado')
@@ -235,19 +357,22 @@ app.whenReady().then(() => {
       ffmpeg()
         .input(track)
         .input(voiceOver)
-        .outputOptions('-ac', '2')
-        .complexFilter(['[0:a]volume=0.3[a1]', '[1:a]volume=0.5[a2]', '[a2][a1]amerge=inputs=2[a]'])
-        .audioFrequency(22050)
-        .audioChannels(2)
-        .audioQuality(1)
+        .complexFilter([
+          '[0:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a0]',
+          '[1:a]aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo[a1]',
+          '[a0][a1]amerge=inputs=2[a]'
+        ])
         .audioCodec('libmp3lame')
+        .audioChannels(2)
+        .outputOptions('-ac', '2')
         .outputOptions('-map', '[a]')
         .save(finalOutputFile)
         .on('end', () => {
           console.log('Conversion finished')
         })
-        .on('error', (err) => {
+        .on('error', (err, stdout, stderr) => {
           console.error('Error:', err)
+          console.error('ffmpeg stderr:', stderr)
         })
     } else if (method === 'concat') {
       if (!fs.existsSync(voiceOver) || !fs.existsSync(signature)) {
@@ -274,6 +399,7 @@ app.whenReady().then(() => {
           console.error('ffmpeg stderr:', stderr)
           console.error('Erro durante a concatenação:', err)
         })
+      return
     } else {
       return
     }
@@ -289,6 +415,7 @@ app.whenReady().then(() => {
         console.log('Arquivo criado')
       }
     })
+
     return event.sender.send('syncVoiceoverResponse', {
       success: true,
       data: filePath
@@ -329,10 +456,51 @@ app.whenReady().then(() => {
     }
   })
 
-  // ipcMain.on('playAudio', () => {
+  ipcMain.on('validatePaths', (event, filesPath) => {
+    console.log(filesPath)
+    let tracksPath = path.join(basePath, 'spot_radio', 'meus arquivos', 'trilhas')
+    let signaturesPath = path.join(basePath, 'spot_radio', 'meus arquivos', 'assinatura')
 
-  // })
+    let trackFiles = fs.readdirSync(tracksPath)
+    let signatureFiles = fs.readdirSync(signaturesPath)
 
+    for (let i in filesPath) {
+      const filterTrack = trackFiles.some((track) => track === filesPath[i].trilha)
+      if (filterTrack === false) {
+        alert(
+          `${filesPath[i].trilha} não encontrado no diretório. Insira o arquivo na pasta ${tracksPath}`
+        )
+        return event.sender.send('csvFilesPaths', {
+          success: false,
+          data: 'error'
+        })
+      }
+
+      const filterSignature = signatureFiles.some(
+        (signature) => signature === filesPath[i].assinatura
+      )
+      if (filterSignature === false) {
+        alert(
+          `${filesPath[i].assinatura} não encontrado no diretório. Insira o arquivo na pasta ${signaturesPath}`
+        )
+        return event.sender.send('csvFilesPaths', {
+          success: false,
+          data: 'error'
+        })
+      }
+    }
+
+    let filesPathCopy = [...filesPath]
+    for (let j in filesPathCopy) {
+      filesPathCopy[j].assinatura = join(signaturesPath, filesPathCopy[j].assinatura)
+      filesPathCopy[j].trilha = join(tracksPath, filesPathCopy[j].trilha)
+    }
+
+    return event.sender.send('csvFilesPaths', {
+      success: true,
+      data: filesPathCopy
+    })
+  })
   createWindow()
 
   app.on('activate', function () {
