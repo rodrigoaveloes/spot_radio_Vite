@@ -25,7 +25,8 @@ function createWindow() {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: true
+      nodeIntegration: true,
+      webSecurity: false
     }
   })
 
@@ -229,10 +230,10 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.on('unsyncPlayAudio', () => {
-    const finalOutputFile = path.join('src', 'renderer', 'src', 'assets', 'play.mp3')
+  ipcMain.on('unsyncPlayAudio', (event, filePath) => {
+    // const outputDir = path.join(basePath, 'spot_radio', 'temp', 'play.mp3')
     try {
-      fs.unlinkSync(finalOutputFile)
+      fs.unlinkSync(filePath)
     } catch (err) {
       console.error(err)
     }
@@ -242,10 +243,10 @@ app.whenReady().then(() => {
     const voiceOver = audios.voiceover
     const track = audios.track
     const signature = audios.signature
-    const outputDir = path.join('src', 'renderer', 'src', 'assets')
+    const outputDir = path.join(basePath, 'spot_radio', 'temp')
     const mergedFile = path.join(outputDir, 'temp.wav')
-    const finalOutputFile = path.join(outputDir, 'play.mp3')
-    console.log(audios, method)
+    // const finalOutputFile = path.join(outputDir, 'play_' + audios.name + '.mp3')
+    const finalOutputFile = audios.play
     if (method === 'concatAndMerge') {
       if (!fs.existsSync(voiceOver)) {
         console.error(`${voiceOver} Não existe!.`)
@@ -405,9 +406,20 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.on('getAudioPath', (event) => {
+    const tempDir = path.join(basePath, 'spot_radio', 'temp')
+    return event.sender.send('getAudioPathResponse', {
+      success: true,
+      data: tempDir
+    })
+  })
+
   ipcMain.on('syncVoiceover', async (event, voiceover) => {
     const buffer = Buffer.from(voiceover.b64, 'base64')
     const filePath = path.join(basePath, 'spot_radio', 'temp', `${voiceover.name}.mp3`)
+
+    // const name
+
     fs.writeFile(filePath, buffer, (err) => {
       if (err) {
         console.error('Error writing the file', err)
@@ -457,13 +469,14 @@ app.whenReady().then(() => {
   })
 
   ipcMain.on('validatePaths', (event, filesPath) => {
-    console.log(filesPath)
     let tracksPath = path.join(basePath, 'spot_radio', 'meus arquivos', 'trilhas')
     let signaturesPath = path.join(basePath, 'spot_radio', 'meus arquivos', 'assinatura')
 
     let trackFiles = fs.readdirSync(tracksPath)
+    console.log(trackFiles)
     let signatureFiles = fs.readdirSync(signaturesPath)
-
+    console.log(signatureFiles)
+    console.log(filesPath)
     for (let i in filesPath) {
       const filterTrack = trackFiles.some((track) => track === filesPath[i].trilha)
       if (filterTrack === false) {
@@ -475,7 +488,6 @@ app.whenReady().then(() => {
           data: 'error'
         })
       }
-
       const filterSignature = signatureFiles.some(
         (signature) => signature === filesPath[i].assinatura
       )

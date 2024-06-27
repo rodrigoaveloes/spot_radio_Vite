@@ -10,54 +10,16 @@ import { Loading } from './utils/loading'
 import { Api } from './api/Api'
 
 function App() {
-  // convert audio
-  const downloadAudio = (audioline) => {
-    console.log(audioline)
-    if (
-      audioline.track !== undefined &&
-      audioline.signature !== undefined &&
-      audioline.voiceover !== undefined
-    ) {
-      window.electron.ipcRenderer.send('downloadAudio', audioline, 'concatAndMerge')
-      alert('arquivo salvo em spot_radio/outputAudio')
-      return
-    } else if ((audioline.voiceover !== undefined) & (audioline.signature !== undefined)) {
-      window.electron.ipcRenderer.send('downloadAudio', audioline, 'concat')
-      alert('arquivo salvo em spot_radio/outputAudio')
-      return
-    } else if ((audioline.voiceover !== undefined) & (audioline.track !== undefined)) {
-      window.electron.ipcRenderer.send('downloadAudio', audioline, 'merge')
-      alert('arquivo salvo em spot_radio/outputAudio')
-      return
-    } else {
-      alert('Insira locução com ao menos uma trilha ou assinatura ')
-    }
-  }
-
-  // save voiceover on desktop temporary
-  const syncVoiceOver = async (voiceover) => {
-    return new Promise((resolve, reject) => {
-      window.electron.ipcRenderer.send('syncVoiceover', voiceover)
-      window.electron.ipcRenderer.once('syncVoiceoverResponse', (event, response) => {
-        if (response.success) {
-          resolve(response.data)
-        } else {
-          console.error('Falha na sincronização:', response.error)
-          reject(response.error)
-        }
-      })
-    })
-  }
-
   const [audioLine, setAudioLine] = useState([
     {
-      voiceover: '',
+      voiceover: 'Locução',
+      voiceoverText: '',
       track: 'Trilha',
       signature: 'Assinatura'
     }
   ])
   const [loading, setLoading] = useState(false)
-  // line with all base64 audio
+
   const [files, setFiles] = useState({
     tracks: [
       {
@@ -66,7 +28,7 @@ function App() {
     ]
   })
 
-  // input file
+  // inputs audio file
   function onFileUpload(event) {
     event.preventDefault()
     let id = event.target.id.split('-')
@@ -83,145 +45,62 @@ function App() {
       audioLineCopy[index].track = file.name
       setAudioLine(audioLineCopy)
       tracksCopy.tracks[index].track = file.path
-      console.log(tracksCopy.tracks[index].track)
     }
     setFiles(tracksCopy)
+    createPlayTempPath(index)
   }
+
+  // handle extend track or not
   const setExtend = (checkedStatus, index) => {
     let filesCopy = { ...files }
+    let audioLineCopy = [...audioLine]
+    audioLineCopy[index].extend = checkedStatus
     filesCopy.tracks[index].extend = checkedStatus
     setFiles(filesCopy)
+    setAudioLine(audioLineCopy)
+    createPlayTempPath(index)
     return
   }
 
-  // create new Audio Line
-  function addNewLine() {
-    let audioLineCopy = [...audioLine]
-    let newAudioLine = {
-      voiceover: 'Locução',
-      voiceoverText: '',
-      track: 'Trilha',
-      signature: 'Assinatura'
-    }
+  const getTtsData = async (data) => {
+    console.log(files.tracks[data.index])
+    data.name = data.name + '_' + data.voice + '_' + uuidv4()
+    let sync = await syncVoiceOver(data, files.tracks[data.index])
 
-    audioLineCopy.push(newAudioLine)
-    setAudioLine(audioLineCopy)
+    // update audioline
+    let audiolineCopy = [...audioLine]
+    audiolineCopy[data.index].voiceover = data.name
+    setAudioLine(audiolineCopy)
 
-    let track = {
-      extend: true
-    }
+    // update files voiceover
     let filesCopy = { ...files }
-    filesCopy.tracks.push(track)
+    filesCopy.tracks[data.index].voiceover = sync.data
+    // filesCopy.tracks[data.index].play = sync.path
+    filesCopy.tracks[data.index].voiceoverText = data.text
+    filesCopy.tracks[data.index].name = data.name
     setFiles(filesCopy)
+    createPlayTempPath(data.index)
   }
-
-  function deleteLine(index) {
-    let audioLineCopy = [...audioLine]
-    let filesCopy = { ...files }
-    if (filesCopy.tracks[index].voiceover !== undefined || '') {
-      window.electron.ipcRenderer.send('deleteTempAudio', filesCopy.tracks[index].voiceover)
-    }
-    if (files.tracks.length > 1) {
-      filesCopy.tracks.splice(index, 1)
-      audioLineCopy.splice(index, 1)
-      setFiles(filesCopy)
-      setAudioLine(audioLineCopy)
-    } else {
-      setFiles({ tracks: [{ extend: true }] })
-      setAudioLine([
-        {
-          voiceover: '',
-          track: 'Trilha',
-          voiceoverText: '',
-          signature: 'Assinatura'
+  // sync voiceover local
+  const syncVoiceOver = async (voiceover, files) => {
+    return new Promise((resolve, reject) => {
+      window.electron.ipcRenderer.send('syncVoiceover', voiceover, files)
+      window.electron.ipcRenderer.once('syncVoiceoverResponse', (event, response) => {
+        if (response.success) {
+          // setFiles
+          resolve(response)
+        } else {
+          console.error('Falha na sincronização:', response.error)
+          reject(response.error)
         }
-      ])
-
-      return
-    }
+      })
+    })
   }
+
+  // CSV
+  // transform csv in json
   // update json with csv data
   const [csvData, setCsvData] = useState([])
-  const insertCsvData = async () => {
-    let audioLineCopy = [...audioLine]
-    let filesCopy = { ...files }
-    for (let i in csvData) {
-      if (csvData[i].assinatura === undefined || csvData[i].assinatura === '') {
-        setCsvData([])
-        i = i + 1
-        return alert(`preencha o campo assinatura, na linha ${i}`)
-      }
-      if (csvData[i].loucao_texto === undefined || csvData[i].loucao_texto === '') {
-        setCsvData([])
-        i = i + 1
-        return alert(`preencha o campo locucao_texto, na linha ${i}`)
-      }
-      if (csvData[i].nome_locucao === undefined || csvData[i].nome_locucao === '') {
-        setCsvData([])
-        i = i + 1
-        return alert(`preencha o campo nome_locucao, na linha ${i}`)
-      }
-      if (csvData[i].trilha === undefined || csvData[i].trilha === '') {
-        setCsvData([])
-        i = i + 1
-        return alert(`preencha o campo trilha, na linha ${i}`)
-      }
-
-      if (csvData[i].voz === undefined || csvData[i].voz === '') {
-        setCsvData([])
-        i = i + 1
-        return alert(`preencha o campo nome_locucao, na linha ${i}`)
-      }
-    }
-
-    // verify if files exist
-    let csvWithPaths = await validatePaths(csvData)
-    setLoading(true)
-
-    console.log(csvWithPaths)
-    const isExtend = (booleanString) => {
-      return (booleanString.toLowerCase() === 'não') | (booleanString.toLowerCase() === 'nao')
-        ? false
-        : true
-    }
-    function delay(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms))
-    }
-    for (let i in csvData) {
-      let voiceOverPath = await syncCsvFiles(csvData[i])
-      let lastIndex = voiceOverPath.split('\\').length - 1
-      let mp3filename = voiceOverPath.split('\\')[lastIndex].split('.mp3')[0]
-      let newAudioLine = {
-        voiceover: csvData[i].nome_locucao,
-        voiceoverText: csvData[i].loucao_texto,
-        voice: csvData[i].voz,
-        track: csvData[i].trilha,
-        signature: csvData[i].assinatura,
-        extend: isExtend(csvData[i].estender)
-      }
-      audioLineCopy.push(newAudioLine)
-
-      let newTrack = {
-        name: mp3filename,
-        voiceoverText: csvWithPaths.data[i].loucao_texto,
-        voice: csvWithPaths.data[i].voz,
-        track: csvWithPaths.data[i].trilha,
-        voiceover: voiceOverPath,
-        signature: csvWithPaths.data[i].assinatura,
-        extend: isExtend(csvWithPaths.data[i].estender)
-      }
-      filesCopy.tracks.push(newTrack)
-      delay(2000)
-    }
-
-    if (filesCopy.tracks[0].voiceover === undefined) {
-      filesCopy.tracks.splice(0, 1)
-      audioLineCopy.splice(0, 1)
-    }
-    setAudioLine(audioLineCopy)
-    setFiles(filesCopy)
-    setLoading(false)
-  }
   const csvUploadFn = (event) => {
     const file = event.target.files[0]
     const fileType = file.name.split('.').pop().toLowerCase()
@@ -235,28 +114,13 @@ function App() {
         setCsvData(result.data)
       },
       error: (error) => {
+        console.log('aqui')
         console.error('Erro ao analisar o arquivo CSV:', error)
         alert('Ocorreu um erro ao analisar o arquivo CSV.')
       }
     })
   }
-  const getTtsData = async (data) => {
-    data.name = data.name + '_' + data.voice + '_' + uuidv4()
-    let sync = await syncVoiceOver(data)
-    // update audioline
-    let audiolineCopy = [...audioLine]
-    audiolineCopy[data.index].voiceover = data.name
-    setAudioLine(audiolineCopy)
-
-    // update files voiceover
-    let filesCopy = { ...files }
-    filesCopy.tracks[data.index].voiceover = sync
-    filesCopy.tracks[data.index].voiceoverText = data.text
-    filesCopy.tracks[data.index].name = data.name
-  }
-  // console.log(files)
-  // console.log(audioLine)
-
+  // helper than verify if file exists on folder
   async function validatePaths(csvData) {
     const validate = async (csv) => {
       return new Promise((resolve, reject) => {
@@ -274,6 +138,8 @@ function App() {
     let result = await validate(csvData)
     return result
   }
+
+  // helper function that´s sync voiceOver from csv files
   async function syncCsvFiles(csvData) {
     const voices = [
       'Adam',
@@ -308,11 +174,123 @@ function App() {
     return voiceOverPath
   }
 
-  async function downloadAllFiles() {
+  //sync csv data, download files,
+  const insertCsvData = async () => {
+    let audioLineCopy = [...audioLine]
+    let filesCopy = { ...files }
+
+    for (let i in csvData) {
+      if (csvData[i].assinatura === undefined || csvData[i].assinatura === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo assinatura, na linha ${i}`)
+      }
+      if (csvData[i].loucao_texto === undefined || csvData[i].loucao_texto === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo locucao_texto, na linha ${i}`)
+      }
+      if (csvData[i].nome_locucao === undefined || csvData[i].nome_locucao === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo nome_locucao, na linha ${i}`)
+      }
+      if (csvData[i].trilha === undefined || csvData[i].trilha === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo trilha, na linha ${i}`)
+      }
+
+      if (csvData[i].voz === undefined || csvData[i].voz === '') {
+        setCsvData([])
+        i = i + 1
+        return alert(`preencha o campo nome_locucao, na linha ${i}`)
+      }
+    }
+
+    // verify if files exist
+    let csvWithPaths = await validatePaths(csvData)
     setLoading(true)
+
+    const isExtend = (booleanString) => {
+      return (booleanString.toLowerCase() === 'não') | (booleanString.toLowerCase() === 'nao')
+        ? false
+        : true
+    }
+    function delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms))
+    }
+    try {
+      for (let i in csvData) {
+        let voiceOverPath = await syncCsvFiles(csvData[i])
+        let mp3filename = voiceOverPath.data.split('\\').pop().split('.mp3')[0]
+        let newAudioLine = {
+          voiceover: csvData[i].nome_locucao,
+          voiceoverText: csvData[i].loucao_texto,
+          voice: csvData[i].voz,
+          track: csvData[i].trilha,
+          signature: csvData[i].assinatura,
+          extend: isExtend(csvData[i].estender)
+        }
+        audioLineCopy.push(newAudioLine)
+
+        let newTrack = {
+          name: mp3filename,
+          voiceoverText: csvWithPaths.data[i].loucao_texto,
+          voice: csvWithPaths.data[i].voz,
+          track: csvWithPaths.data[i].trilha,
+          voiceover: voiceOverPath.data,
+          signature: csvWithPaths.data[i].assinatura,
+          extend: isExtend(csvWithPaths.data[i].estender)
+        }
+        filesCopy.tracks.push(newTrack)
+        delay(2000)
+      }
+
+      if (filesCopy.tracks[0].voiceover === undefined) {
+        filesCopy.tracks.splice(0, 1)
+        audioLineCopy.splice(0, 1)
+      }
+      setAudioLine(audioLineCopy)
+      setFiles(filesCopy)
+      // update play Paths
+      for (let i in filesCopy.tracks) {
+        createPlayTempPath(i)
+      }
+      setCsvData([])
+      setLoading(false)
+    } catch (e) {
+      alert(e)
+      console.error('caminho não encontrado')
+      setCsvData([])
+      setLoading(false)
+    }
+  }
+
+  // create new Audio Line
+  function addNewLine() {
+    let audioLineCopy = [...audioLine]
+    let newAudioLine = {
+      voiceover: 'Locução',
+      voiceoverText: '',
+      track: 'Trilha',
+      signature: 'Assinatura'
+    }
+
+    audioLineCopy.push(newAudioLine)
+    setAudioLine(audioLineCopy)
+
+    let track = {
+      extend: true
+    }
+    let filesCopy = { ...files }
+    filesCopy.tracks.push(track)
+    setFiles(filesCopy)
+  }
+  // download All audio files
+  async function downloadAllFiles() {
     const download = (audioline, index) => {
       const { track, signature, voiceover } = audioline
-
       if (track && signature && voiceover) {
         window.electron.ipcRenderer.send('downloadAudio', audioline, 'concatAndMerge')
       } else if (voiceover && signature) {
@@ -321,8 +299,10 @@ function App() {
         window.electron.ipcRenderer.send('downloadAudio', audioline, 'merge')
       } else {
         alert(`Insira locução com ao menos uma trilha ou assinatura na linha ${index + 1}`)
+        return
       }
     }
+    setLoading(true)
 
     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -333,20 +313,108 @@ function App() {
     setLoading(false)
 
     alert('arquivo salvo em spot_radio/outputAudio')
-    console.log(files)
   }
-  const createPaths = () => {
-    window.electron.ipcRenderer.send('createPaths')
+  // download single file
+  const downloadAudio = (audioline) => {
+    if (
+      audioline.track !== undefined &&
+      audioline.signature !== undefined &&
+      audioline.voiceover !== undefined
+    ) {
+      window.electron.ipcRenderer.send('downloadAudio', audioline, 'concatAndMerge')
+      alert('arquivo salvo em spot_radio/outputAudio')
+      return
+    } else if ((audioline.voiceover !== undefined) & (audioline.signature !== undefined)) {
+      window.electron.ipcRenderer.send('downloadAudio', audioline, 'concat')
+      alert('arquivo salvo em spot_radio/outputAudio')
+      return
+    } else if ((audioline.voiceover !== undefined) & (audioline.track !== undefined)) {
+      window.electron.ipcRenderer.send('downloadAudio', audioline, 'merge')
+      alert('arquivo salvo em spot_radio/outputAudio')
+      return
+    } else {
+      alert('Insira locução com ao menos uma trilha ou assinatura ')
+    }
   }
-  useEffect(() => {
-    createPaths()
-  }, [])
+  // delete Line
+  function deleteLine(index) {
+    let audioLineCopy = [...audioLine]
+    let filesCopy = { ...files }
+    if (filesCopy.tracks[index].voiceover !== undefined || '') {
+      window.electron.ipcRenderer.send('deleteTempAudio', filesCopy.tracks[index].voiceover)
+    }
+    if (files.tracks.length > 1) {
+      filesCopy.tracks.splice(index, 1)
+      audioLineCopy.splice(index, 1)
+      setFiles(filesCopy)
+      setAudioLine(audioLineCopy)
+    } else {
+      setFiles({ tracks: [{ extend: true }] })
+      setAudioLine([
+        {
+          voiceover: '',
+          track: 'Trilha',
+          voiceoverText: '',
+          signature: 'Assinatura'
+        }
+      ])
+
+      return
+    }
+  }
+
+  // helper function that creates a temporary name with the audios names, hash and characteristics ps: this was created because of a bug when playing audio
+  function createPlayTempPath(index) {
+    let filesCopy = { ...files }
+    let basePath = filesCopy.basePath
+    let line = filesCopy.tracks[index]
+    let playPath = ''
+    if (line.signature !== undefined) {
+      playPath += line.signature.split('\\').pop().split('.')[0] + '_'
+    }
+    if (line.track !== undefined) {
+      playPath += line.track.split('\\').pop().split('.')[0] + '_'
+    }
+    if (line.name !== undefined) {
+      playPath += line.name.split('\\').pop().split('.')[0] + '_'
+    }
+    playPath += line.extend ? 'ext.mp3' : 'nExt.mp3'
+    let output = basePath + '\\' + playPath
+    filesCopy.tracks[index].play = output
+    setFiles(filesCopy)
+    return
+  }
 
   useEffect(() => {
     if (csvData.length > 0) {
       insertCsvData()
     }
   }, [csvData])
+
+  // create folders if necessary, and take the OS path when starting the application
+  const getSrcPath = async () => {
+    return new Promise((resolve, reject) => {
+      window.electron.ipcRenderer.send('getAudioPath')
+      window.electron.ipcRenderer.once('getAudioPathResponse', (event, response) => {
+        if (response.success) {
+          let copyFiles = { ...files }
+          copyFiles.basePath = response.data
+          setFiles(copyFiles)
+          resolve(response.data)
+        } else {
+          console.error('Falha na sincronização:', response.error)
+          reject(response.error)
+        }
+      })
+    })
+  }
+  const createPaths = () => {
+    window.electron.ipcRenderer.send('createPaths')
+  }
+  useEffect(() => {
+    createPaths()
+    getSrcPath()
+  }, [])
 
   return (
     <>
@@ -423,7 +491,6 @@ function App() {
       <div
         style={{
           display: 'block',
-          // boxShadow: 'rgba(149, 157, 165, 0.2) 0px 8px 24px',
           height: '600px',
           minWidth: '780px',
           overflow: 'auto',
@@ -536,7 +603,7 @@ function App() {
               />
             </div>
 
-            <Player path="../src/assets/play.mp3" files={files.tracks[index]} />
+            <Player files={files.tracks[index]} />
             <button
               className="light-button"
               onClick={() => {
