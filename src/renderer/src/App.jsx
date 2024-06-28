@@ -161,6 +161,7 @@ function App() {
     }
     let body = { text: csvData.loucao_texto, voice: checkVoice(csvData.voz) }
     let response = await Api.TextToSpeech(body)
+    console.log(response)
     let b64 = 'data:audio/mpeg;base64,' + response.audioBase64
     let name = (csvData.nome_locucao = csvData.nome_locucao + '_' + csvData.voz + '_' + uuidv4())
     let syncParams = {
@@ -223,6 +224,7 @@ function App() {
     try {
       for (let i in csvData) {
         let voiceOverPath = await syncCsvFiles(csvData[i])
+        console.log(voiceOverPath)
         let mp3filename = voiceOverPath.data.split('\\').pop().split('.mp3')[0]
         let newAudioLine = {
           voiceover: csvData[i].nome_locucao,
@@ -400,6 +402,7 @@ function App() {
           let copyFiles = { ...files }
           copyFiles.basePath = response.data
           setFiles(copyFiles)
+          // alert(response.data)
           resolve(response.data)
         } else {
           console.error('Falha na sincronização:', response.error)

@@ -26,7 +26,12 @@ function createWindow() {
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: true,
-      webSecurity: false
+      webSecurity: false,
+      enableRemoteModule: true,
+      enableWebSQL: false,
+      enableServiceWorker: true,
+      experimentalFeatures: true,
+      webviewTag: true
     }
   })
 
@@ -67,7 +72,11 @@ app.whenReady().then(() => {
   var fs = require('node:fs')
   var path = require('path')
   var os = require('os')
-  var ffmpegPath = require('@ffmpeg-installer/ffmpeg').path
+  // var ffmpegPath = require('@ffmpeg-installer/ffmpeg').path
+  // var ffmpegPath = require('ffmpeg-static')
+  // var ffmpegPath = path.join(process.resourcesPath, 'ffmpeg.exe')
+  const ffmpegPath = require('ffmpeg-static')
+  console.log(ffmpegPath)
   var ffmpeg = require('fluent-ffmpeg')
   ffmpeg.setFfmpegPath(ffmpegPath)
   const basePath = path.join(os.homedir(), 'Desktop')
@@ -85,11 +94,9 @@ app.whenReady().then(() => {
         console.error('Arquivo não encontrado')
         return
       }
-
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true })
       }
-
       if (audios.extend === false) {
         ffmpeg()
           .input(track)
@@ -231,7 +238,6 @@ app.whenReady().then(() => {
   })
 
   ipcMain.on('unsyncPlayAudio', (event, filePath) => {
-    // const outputDir = path.join(basePath, 'spot_radio', 'temp', 'play.mp3')
     try {
       fs.unlinkSync(filePath)
     } catch (err) {
